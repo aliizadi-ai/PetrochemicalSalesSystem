@@ -1,4 +1,6 @@
-﻿namespace PetrochemicalSalesSystem.Forms
+﻿using System;
+
+namespace PetrochemicalAccountantSystem.Forms
 {
     partial class AccountantDetailForm
     {
@@ -26,6 +28,10 @@
         /// Required method for Designer support - do not modify
         /// the contents of this method with the code editor.
         /// </summary>
+        private void AccountantDetailForm_Load(object sender, EventArgs e)
+        {
+
+        }
         private void InitializeComponent()
         {
             this.SuspendLayout();

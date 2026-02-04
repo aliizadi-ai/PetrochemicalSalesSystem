@@ -163,9 +163,6 @@
     <Compile Include="Utilities\ExportHelper.cs" />
     <Compile Include="Utilities\SecurityHelper.cs" />
     <Compile Include="Utilities\Validator.cs" />
-    <EmbeddedResource Include="Forms\AccountantDetailForm.resx">
-      <DependentUpon>AccountantDetailForm.cs</DependentUpon>
-    </EmbeddedResource>
     <EmbeddedResource Include="Forms\AccountantEditForm.resx">
       <DependentUpon>AccountantEditForm.cs</DependentUpon>
     </EmbeddedResource>

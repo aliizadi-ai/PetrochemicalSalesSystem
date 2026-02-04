@@ -8,6 +8,8 @@ namespace PetrochemicalSalesSystem.Forms
         /// Required designer variable.
         /// </summary>
         private System.ComponentModel.IContainer components = null;
+        private System.Windows.Forms.DataGridView dataGridView1;
+
 
         /// <summary>
         /// Clean up any resources being used.
@@ -38,6 +40,9 @@ namespace PetrochemicalSalesSystem.Forms
         private void InitializeComponent()
         {
             this.SuspendLayout();
+
+
+
             // 
             // MainForm
             // 
@@ -49,6 +54,11 @@ namespace PetrochemicalSalesSystem.Forms
             this.Load += new System.EventHandler(this.MainForm_Load);
             this.ResumeLayout(false);
 
+
+
+
+
+ 
         }
 
         #endregion

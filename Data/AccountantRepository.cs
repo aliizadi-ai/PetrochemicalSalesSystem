@@ -75,7 +75,7 @@ namespace PetrochemicalSalesSystem.Data
                     BankName = row["BankName"].ToString(),
                     BankBranch = row["BankBranch"].ToString(),
                     CostCenterCode = row["CostCenterCode"] != DBNull.Value ? row["CostCenterCode"].ToString() : null,
-                    IsActive = row["IsActive"] != DBNull.Value ? Convert.ToBoolean(row["IsActive"]) : null,
+                    IsActive = row["IsActive"] != DBNull.Value ? Convert.ToBoolean(row["IsActive"]) : false,
                     CreatedDate = Convert.ToDateTime(row["CreatedDate"]),
                     ModifiedDate = Convert.ToDateTime(row["ModifiedDate"]),
                     DepartmentName = row["DepartmentName"] != DBNull.Value ? row["DepartmentName"].ToString() : ""

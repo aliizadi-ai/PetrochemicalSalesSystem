@@ -263,24 +263,38 @@ namespace PetrochemicalAccountantSystem.Forms
 
         private string GetGenderText(char? gender)
         {
-            return gender switch
+            if (!gender.HasValue)
+                return "---";
+
+            switch (gender.Value)
             {
-                'M' => "مرد",
-                'F' => "زن",
-                _ => "---"
-            };
+                case 'M':
+                    return "مرد";
+                case 'F':
+                    return "زن";
+                default:
+                    return "---";
+            }
         }
 
         private string GetMaritalStatusText(char? status)
         {
-            return status switch
+            if (!status.HasValue)
+                return "---";
+
+            switch (status.Value)
             {
-                'S' => "مجرد",
-                'M' => "متاهل",
-                'D' => "مطلقه",
-                'W' => "همسر فوت شده",
-                _ => "---"
-            };
+                case 'S':
+                    return "مجرد";
+                case 'M':
+                    return "متاهل";
+                case 'D':
+                    return "مطلقه";
+                case 'W':
+                    return "همسر فوت شده";
+                default:
+                    return "---";
+            }
         }
 
         private string GetStatusText(bool? isActive)

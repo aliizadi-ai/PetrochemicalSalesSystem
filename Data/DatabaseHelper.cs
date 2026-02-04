@@ -7,7 +7,7 @@ namespace PetrochemicalSalesSystem.Data
 {
     public class DatabaseHelper
     {
-        private static string connectionString = ConfigurationManager.ConnectionStrings["DefaultConnection"]?.ConnectionString;
+        private static string connectionString = ConfigurationManager.ConnectionStrings["PetrochemicalSalesDB"]?.ConnectionString;
 
         public static SqlConnection GetConnection()
         {

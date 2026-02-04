@@ -1,4 +1,5 @@
-﻿using PetrochemicalSalesSystem.Data;
+﻿using PetrochemicalAccountantSystem.Forms;
+using PetrochemicalSalesSystem.Data;
 using PetrochemicalSalesSystem.Models;
 using System;
 using System.Collections.Generic;
@@ -36,6 +37,7 @@ namespace PetrochemicalSalesSystem.Forms
             _accountantRepository = new AccountantRepository();
             InitializeDesign();
             LoadAccountants();
+            InitializeEvents();
         }
 
         // ========== رویدادهای دکمه‌ها ==========
@@ -47,9 +49,9 @@ namespace PetrochemicalSalesSystem.Forms
 
         private void BtnEdit_Click(object sender, EventArgs e)
         {
-            if (dataGridView1.SelectedRows.Count > 0)
+            if (dgvAccountants.SelectedRows.Count > 0)
             {
-                DataGridViewRow selectedRow = dataGridView1.SelectedRows[0];
+                DataGridViewRow selectedRow = dgvAccountants.SelectedRows[0];
                 long accountantId = Convert.ToInt64(selectedRow.Cells["AccountantID"].Value);
                 OpenAccountantEditForm(accountantId);
             }
@@ -92,9 +94,9 @@ namespace PetrochemicalSalesSystem.Forms
 
         private void BtnDelete_Click(object sender, EventArgs e)
         {
-            if (dataGridView1.SelectedRows.Count > 0)
+            if (dgvAccountants.SelectedRows.Count > 0)
             {
-                DataGridViewRow selectedRow = dataGridView1.SelectedRows[0];
+                DataGridViewRow selectedRow = dgvAccountants.SelectedRows[0];
                 long accountantId = Convert.ToInt64(selectedRow.Cells["AccountantID"].Value);
                 string fullName = selectedRow.Cells["FullName"].Value?.ToString() ?? "ناشناس";
 
@@ -188,10 +190,10 @@ namespace PetrochemicalSalesSystem.Forms
             if (e.RowIndex >= 0 && e.ColumnIndex >= 0)
             {
                 // اگر روی دکمه "مشاهده جزئیات" کلیک شد
-                if (dataGridView1.Columns[e.ColumnIndex].HeaderText == "عملیات" ||
-                    dataGridView1.Columns[e.ColumnIndex].HeaderText == "مشاهده جزئیات")
+                if (dgvAccountants.Columns[e.ColumnIndex].HeaderText == "عملیات" ||
+                    dgvAccountants.Columns[e.ColumnIndex].HeaderText == "مشاهده جزئیات")
                 {
-                    long accountantId = Convert.ToInt64(dataGridView1.Rows[e.RowIndex].Cells["AccountantID"].Value);
+                    long accountantId = Convert.ToInt64(dgvAccountants.Rows[e.RowIndex].Cells["AccountantID"].Value);
                     OpenAccountantDetailForm(accountantId);
                 }
             }
@@ -201,7 +203,7 @@ namespace PetrochemicalSalesSystem.Forms
         {
             if (e.RowIndex >= 0)
             {
-                long accountantId = Convert.ToInt64(dataGridView1.Rows[e.RowIndex].Cells["AccountantID"].Value);
+                long accountantId = Convert.ToInt64(dgvAccountants.Rows[e.RowIndex].Cells["AccountantID"].Value);
                 OpenAccountantEditForm(accountantId);
             }
         }
@@ -209,7 +211,7 @@ namespace PetrochemicalSalesSystem.Forms
         private void DgvAccountants_SelectionChanged(object sender, EventArgs e)
         {
             // به‌روزرسانی وضعیت دکمه‌ها بر اساس انتخاب
-            bool hasSelection = dataGridView1.SelectedRows.Count > 0;
+            bool hasSelection = dgvAccountants.SelectedRows.Count > 0;
 
             Button editButton = buttonPanel.Controls.OfType<Button>()
                 .FirstOrDefault(b => b.Text.Contains("ویرایش"));
@@ -250,7 +252,7 @@ namespace PetrochemicalSalesSystem.Forms
 
         private void ExportToExcel()
         {
-            if (dataGridView1.Rows.Count == 0)
+            if (dgvAccountants.Rows.Count == 0)
             {
                 MessageBox.Show("داده‌ای برای خروجی وجود ندارد.", "هشدار",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -301,7 +303,7 @@ namespace PetrochemicalSalesSystem.Forms
                 {
                     // نوشتن هدرها
                     List<string> headers = new List<string>();
-                    foreach (DataGridViewColumn column in dataGridView1.Columns)
+                    foreach (DataGridViewColumn column in dgvAccountants.Columns)
                     {
                         if (column.Visible && !column.HeaderText.Contains("عملیات"))
                         {
@@ -311,12 +313,12 @@ namespace PetrochemicalSalesSystem.Forms
                     writer.WriteLine(string.Join(",", headers));
 
                     // نوشتن داده‌ها
-                    foreach (DataGridViewRow row in dataGridView1.Rows)
+                    foreach (DataGridViewRow row in dgvAccountants.Rows)
                     {
                         if (row.IsNewRow) continue;
 
                         List<string> cells = new List<string>();
-                        foreach (DataGridViewColumn column in dataGridView1.Columns)
+                        foreach (DataGridViewColumn column in dgvAccountants.Columns)
                         {
                             if (column.Visible && !column.HeaderText.Contains("عملیات"))
                             {
@@ -348,7 +350,7 @@ namespace PetrochemicalSalesSystem.Forms
             if (recordLabel != null)
             {
                 int totalCount = _accountants?.Count ?? 0;
-                int filteredCount = dataGridView1.Rows.Count;
+                int filteredCount = dgvAccountants.Rows.Count;
 
                 if (totalCount == filteredCount)
                 {
@@ -440,9 +442,9 @@ namespace PetrochemicalSalesSystem.Forms
             }
 
             // رویداد DataGridView
-            dataGridView1.CellContentClick += DgvAccountants_CellContentClick;
-            dataGridView1.CellDoubleClick += DgvAccountants_CellDoubleClick;
-            dataGridView1.SelectionChanged += DgvAccountants_SelectionChanged;
+            dgvAccountants.CellContentClick += DgvAccountants_CellContentClick;
+            dgvAccountants.CellDoubleClick += DgvAccountants_CellDoubleClick;
+            dgvAccountants.SelectionChanged += DgvAccountants_SelectionChanged;
         }
         private void ApplyFilters()
         {
@@ -474,15 +476,15 @@ namespace PetrochemicalSalesSystem.Forms
             }
 
             // نمایش در DataGridView
-            dataGridView1.DataSource = filteredList.ToList();
+            dgvAccountants.DataSource = filteredList.ToList();
             FormatDataGridView();
         }
         private void FormatDataGridView()
         {
-            if (dataGridView1.Columns.Count == 0) return;
+            if (dgvAccountants.Columns.Count == 0) return;
 
             // تنظیم فرمت ستون‌ها
-            foreach (DataGridViewColumn column in dataGridView1.Columns)
+            foreach (DataGridViewColumn column in dgvAccountants.Columns)
             {
                 if (column.Name.Contains("Date") || column.HeaderText.Contains("تاریخ"))
                 {
@@ -496,9 +498,9 @@ namespace PetrochemicalSalesSystem.Forms
             }
 
             // ستون وضعیت
-            if (dataGridView1.Columns.Contains("IsActive"))
+            if (dgvAccountants.Columns.Contains("IsActive"))
             {
-                dataGridView1.Columns["IsActive"].Visible = false; // مخفی کنیم چون CheckBox داریم
+                dgvAccountants.Columns["IsActive"].Visible = false; // مخفی کنیم چون CheckBox داریم
             }
         }
 
@@ -539,6 +541,8 @@ namespace PetrochemicalSalesSystem.Forms
             this.BackColor = backgroundColor;
             this.Font = normalFont;
 
+
+
             // ایجاد پنل بالا
             CreateTopPanel();
 
@@ -548,11 +552,11 @@ namespace PetrochemicalSalesSystem.Forms
             // ایجاد پنل دکمه‌ها
             CreateButtonPanel();
 
-            // ایجاد DataGridView
-            CreateDataGridView();
-
             // ایجاد StatusStrip
             CreateStatusStrip();
+          
+            // ایجاد DataGridView
+            CreateDataGridView();
         }
 
         private void CreateTopPanel()
