@@ -4,6 +4,7 @@ using PetrochemicalSalesSystem.Models;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.SqlClient;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -342,26 +343,7 @@ namespace PetrochemicalSalesSystem.Forms
             }
         }
 
-        private void UpdateStatusBar()
-        {
-            ToolStripStatusLabel recordLabel = statusStrip.Items.OfType<ToolStripStatusLabel>()
-                .FirstOrDefault(l => l.Text.Contains("تعداد رکوردها"));
 
-            if (recordLabel != null)
-            {
-                int totalCount = _accountants?.Count ?? 0;
-                int filteredCount = dgvAccountants.Rows.Count;
-
-                if (totalCount == filteredCount)
-                {
-                    recordLabel.Text = $"📊 تعداد حسابداران: {totalCount}";
-                }
-                else
-                {
-                    recordLabel.Text = $"📊 نمایش {filteredCount} از {totalCount} حسابدار";
-                }
-            }
-        }
 
 
         // تابع InitializeDesign را قبلاً داشتید، حالا رویدادهای دکمه‌ها را اضافه می‌کنیم
@@ -395,13 +377,6 @@ namespace PetrochemicalSalesSystem.Forms
                 deleteButton.Click += BtnDelete_Click;
             }
 
-            // دکمه بروزرسانی
-            Button refreshButton = buttonPanel.Controls.OfType<Button>()
-                .FirstOrDefault(b => b.Text.Contains("بروزرسانی"));
-            if (refreshButton != null)
-            {
-                refreshButton.Click += BtnRefresh_Click;
-            }
 
             // دکمه خروجی Excel
             Button exportButton = buttonPanel.Controls.OfType<Button>()
@@ -441,11 +416,40 @@ namespace PetrochemicalSalesSystem.Forms
                 filterCombo.SelectedIndexChanged += CmbFilter_SelectedIndexChanged;
             }
 
+            // دکمه بروزرسانی
+            Button refreshButton = buttonPanel.Controls.OfType<Button>()
+                .FirstOrDefault(b => b.Text.Contains("بروزرسانی"));
+            if (refreshButton != null)
+            {
+                refreshButton.Click += (s, e) =>
+                {
+                    // پاک کردن TextBox جستجو
+                    if (searchTextBox != null)
+                        searchTextBox.Text = "";
+
+                    // بازنشانی ComboBox وضعیت
+                    if (filterCombo != null)
+                        filterCombo.SelectedIndex = 0;
+
+                    // بارگذاری مجدد
+                    LoadAccountants();
+                };
+            }
+
+
+
             // رویداد DataGridView
             dgvAccountants.CellContentClick += DgvAccountants_CellContentClick;
             dgvAccountants.CellDoubleClick += DgvAccountants_CellDoubleClick;
             dgvAccountants.SelectionChanged += DgvAccountants_SelectionChanged;
         }
+
+        private void DataGripShowAllRows()
+        {
+
+            InitialDataGridView();
+        }
+
         private void ApplyFilters()
         {
             if (_accountants == null) return;
@@ -478,32 +482,46 @@ namespace PetrochemicalSalesSystem.Forms
             // نمایش در DataGridView
             dgvAccountants.DataSource = filteredList.ToList();
             FormatDataGridView();
+
+            // به‌روزرسانی نوار وضعیت
+            UpdateStatusBar(filteredList.Count());
         }
-        private void FormatDataGridView()
+
+        private void InitialDataGridView()
         {
-            if (dgvAccountants.Columns.Count == 0) return;
 
             // تنظیم فرمت ستون‌ها
             foreach (DataGridViewColumn column in dgvAccountants.Columns)
             {
-                if (column.Name.Contains("Date") || column.HeaderText.Contains("تاریخ"))
-                {
-                    column.DefaultCellStyle.Format = "yyyy/MM/dd";
-                }
-                else if (column.Name.Contains("Salary") || column.HeaderText.Contains("حقوق"))
-                {
-                    column.DefaultCellStyle.Format = "N0";
-                    column.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
-                }
+
+                column.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
             }
 
-            // ستون وضعیت
-            if (dgvAccountants.Columns.Contains("IsActive"))
-            {
-                dgvAccountants.Columns["IsActive"].Visible = false; // مخفی کنیم چون CheckBox داریم
-            }
+
         }
 
+        private void FormatDataGridView()
+        {
+            if (dgvAccountants.Columns.Count == 0) return;
+
+            // تنظیمات ظاهری
+            dgvAccountants.ColumnHeadersDefaultCellStyle.BackColor = primaryColor;
+            dgvAccountants.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvAccountants.ColumnHeadersDefaultCellStyle.Font = new Font("B Nazanin", 11, FontStyle.Bold);
+            dgvAccountants.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+
+            // راست‌چین کردن متن برای فارسی
+            dgvAccountants.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            dgvAccountants.DefaultCellStyle.Font = new Font("B Nazanin", 10);
+
+            // سطرهای متناوب
+            dgvAccountants.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 249, 250);
+
+            // تنظیم AutoSizeColumnsMode برای نمایش بهتر
+            dgvAccountants.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+            dgvAccountants.AllowUserToOrderColumns = true;
+            dgvAccountants.AllowUserToResizeColumns = true;
+        }
 
         private void LoadAccountants()
         {
@@ -514,10 +532,10 @@ namespace PetrochemicalSalesSystem.Forms
                 // دریافت همه حسابداران
                 _accountants = _accountantRepository.GetAllAccountants();
 
-                // اعمال فیلتر جستجو
-                ApplyFilters();
+                // *** تغییر: ابتدا همه داده‌ها را نمایش بده، سپس فیلترها را اعمال کن ***
+                DisplayAllAccountants();
 
-                UpdateStatusBar();
+                // بعداً اگر جستجو انجام شد، ApplyFilters() فراخوانی می‌شود
             }
             catch (Exception ex)
             {
@@ -527,6 +545,52 @@ namespace PetrochemicalSalesSystem.Forms
             finally
             {
                 Cursor = Cursors.Default;
+            }
+        }
+
+        private void DisplayAllAccountants()
+        {
+            if (_accountants == null) return;
+
+            // ابتدا ستون‌ها را تنظیم کنید
+            ConfigureGridViewColumns();
+
+            // نمایش تمام حسابداران در DataGridView
+            dgvAccountants.DataSource = _accountants.ToList();
+
+            // فرمت‌بندی DataGridView
+            FormatDataGridView();
+
+            // *** تنظیم عرض ستون‌ها ***
+            AdjustColumnWidths();
+
+            // به‌روزرسانی نوار وضعیت
+            UpdateStatusBar(_accountants.Count);
+        }
+
+        private void TestDatabaseConnection()
+        {
+            try
+            {
+                string connectionString = "Server=.;Database=PetrochemicalSalesDB;Integrated Security=true;";
+
+                using (SqlConnection conn = new SqlConnection(connectionString))
+                {
+                    conn.Open();
+                    MessageBox.Show("اتصال به دیتابیس موفق بود!", "موفقیت");
+
+                    // تست کوئری
+                    string testQuery = "SELECT COUNT(*) FROM Accountants";
+                    SqlCommand cmd = new SqlCommand(testQuery, conn);
+                    int count = (int)cmd.ExecuteScalar();
+                    MessageBox.Show($"تعداد حسابداران در دیتابیس: {count}");
+
+                    conn.Close();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"خطا در اتصال به دیتابیس: {ex.Message}", "خطا");
             }
         }
 
@@ -541,22 +605,15 @@ namespace PetrochemicalSalesSystem.Forms
             this.BackColor = backgroundColor;
             this.Font = normalFont;
 
-
-
-            // ایجاد پنل بالا
+            // ایجاد کنترل‌ها
             CreateTopPanel();
-
-            // ایجاد پنل جستجو
             CreateSearchPanel();
-
-            // ایجاد پنل دکمه‌ها
             CreateButtonPanel();
-
-            // ایجاد StatusStrip
-            CreateStatusStrip();
-          
-            // ایجاد DataGridView
             CreateDataGridView();
+            CreateStatusStrip();
+
+            // *** تغییر: فقط LoadAccountants را فراخوانی کن ***
+            LoadAccountants();
         }
 
         private void CreateTopPanel()
@@ -691,104 +748,526 @@ namespace PetrochemicalSalesSystem.Forms
             reportButton.Location = new Point(660, 10);
             reportButton.Size = new Size(120, 40);
 
+            // دکمه جدید: نمایش همه
+            Button showAllButton = CreateStyledButton("👁️ نمایش همه", Color.FromArgb(13, 202, 240), Color.White);
+            showAllButton.Location = new Point(790, 10);
+            showAllButton.Size = new Size(120, 40);
+            showAllButton.Click += (s, e) => DisplayAllAccountants();
+
             buttonPanel.Controls.Add(addButton);
             buttonPanel.Controls.Add(editButton);
             buttonPanel.Controls.Add(deleteButton);
             buttonPanel.Controls.Add(refreshButton);
             buttonPanel.Controls.Add(exportButton);
             buttonPanel.Controls.Add(reportButton);
+            buttonPanel.Controls.Add(showAllButton); // اضافه کردن دکمه جدید
+
 
             this.Controls.Add(buttonPanel);
         }
 
+        /*
+        private void LoadAccountantDataAlternative()
+        {
+            string connectionString = "Server=.;Database=YourDatabase;Integrated Security=true;";
+            string query = "SELECT * FROM Accountant";
+
+            using (SqlConnection connection = new SqlConnection(connectionString))
+            {
+                SqlDataAdapter adapter = new SqlDataAdapter(query, connection);
+                DataTable dt = new DataTable();
+
+                try
+                {
+                    adapter.Fill(dt);
+                    dataGridView1.DataSource = dt;
+
+                    // تنظیم عناوین فارسی برای ستون‌ها
+                    SetPersianColumnHeaders();
+
+                    // مخفی کردن ستون‌های غیرضروری
+                    HideUnnecessaryColumns();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"خطا: {ex.Message}");
+                }
+            }
+        }
+        */
+
+        private void SetPersianColumnHeaders()
+        {
+            // ایجاد دیکشنری برای نگاشت نام ستون‌های انگلیسی به فارسی
+            Dictionary<string, string> columnHeaders = new Dictionary<string, string>()
+        {
+        {"Id", "کد"},
+        {"FirstName", "نام"},
+        {"LastName", "نام خانوادگی"},
+        {"PhoneNumber", "شماره تلفن"},
+        {"Email", "ایمیل"},
+        {"NationalCode", "کد ملی"},
+        {"HireDate", "تاریخ استخدام"}
+        // سایر ستون‌ها...
+        };
+
+            foreach (DataGridViewColumn column in dataGridView1.Columns)
+            {
+                if (columnHeaders.ContainsKey(column.DataPropertyName))
+                {
+                    column.HeaderText = columnHeaders[column.DataPropertyName];
+                }
+            }
+        }
+
+        private void HideUnnecessaryColumns()
+        {
+            // لیست ستون‌هایی که می‌خواهید مخفی کنید
+            string[] columnsToHide = { "PasswordHash", "Salt", "CreatedDate" };
+
+            foreach (DataGridViewColumn column in dataGridView1.Columns)
+            {
+                if (columnsToHide.Contains(column.DataPropertyName))
+                {
+                    column.Visible = false;
+                }
+            }
+        }
+        /*
+        private void LoadAccountantDataSimple()
+        {
+            try
+            {
+                string connectionString = "Server=.;Database=PetrochemicalSalesDB;Integrated Security=true;";
+                string query = "SELECT AccountantID as 'کد', FirstName as 'نام', LastName as 'نام خانوادگی', " +
+                              "Mobile as 'تلفن همراه', WorkEmail as 'ایمیل' FROM Accountants";
+
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    SqlDataAdapter adapter = new SqlDataAdapter(query, connection);
+                    DataTable dt = new DataTable();
+                    adapter.Fill(dt);
+
+                    // ساده‌ترین روش
+                    dgvAccountants.DataSource = dt;
+
+                    // تنظیمات ظاهری
+                    dgvAccountants.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+                    dgvAccountants.RowHeadersVisible = false;
+                    dgvAccountants.AllowUserToAddRows = false;
+                    dgvAccountants.ReadOnly = true;
+
+                    // راست‌چین کردن برای فارسی
+                    dgvAccountants.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvAccountants.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+
+                    MessageBox.Show($"داده‌ها بارگذاری شدند. تعداد: {dt.Rows.Count}");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"خطا: {ex.Message}");
+            }
+        }
+        */
+
+        /*
+        private void LoadAccountantDataWithPersianColumns()
+        {
+            try
+            {
+                string connectionString = "Server=.;Database=PetrochemicalSalesDB;Integrated Security=true;";
+                string query = "SELECT AccountantID, FirstName, LastName, Mobile, WorkEmail FROM Accountants";
+
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    SqlDataAdapter adapter = new SqlDataAdapter(query, connection);
+                    DataTable dt = new DataTable();
+                    adapter.Fill(dt);
+
+                    // **مهم: پاک کردن ستون‌های قبلی**
+                    dgvAccountants.Columns.Clear();
+
+                    // **غیرفعال کردن تولید خودکار ستون‌ها**
+                    dgvAccountants.AutoGenerateColumns = false;
+
+                    // **فقط 5 ستون ضروری را اضافه کنید**
+
+                    // ستون 1: کد حسابدار
+                    DataGridViewTextBoxColumn colId = new DataGridViewTextBoxColumn();
+                    colId.Name = "AccountantID";
+                    colId.DataPropertyName = "AccountantID";
+                    colId.HeaderText = "کد حسابدار";
+                    colId.Width = 100;
+                    colId.ReadOnly = true;
+                    colId.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvAccountants.Columns.Add(colId);
+
+                    // ستون 2: نام
+                    DataGridViewTextBoxColumn colFirstName = new DataGridViewTextBoxColumn();
+                    colFirstName.Name = "FirstName";
+                    colFirstName.DataPropertyName = "FirstName";
+                    colFirstName.HeaderText = "نام";
+                    colFirstName.Width = 120;
+                    colFirstName.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvAccountants.Columns.Add(colFirstName);
+
+                    // ستون 3: نام خانوادگی
+                    DataGridViewTextBoxColumn colLastName = new DataGridViewTextBoxColumn();
+                    colLastName.Name = "LastName";
+                    colLastName.DataPropertyName = "LastName";
+                    colLastName.HeaderText = "نام خانوادگی";
+                    colLastName.Width = 150;
+                    colLastName.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvAccountants.Columns.Add(colLastName);
+
+                    // ستون 4: تلفن همراه
+                    DataGridViewTextBoxColumn colMobile = new DataGridViewTextBoxColumn();
+                    colMobile.Name = "Mobile";
+                    colMobile.DataPropertyName = "Mobile";
+                    colMobile.HeaderText = "تلفن همراه";
+                    colMobile.Width = 120;
+                    colMobile.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvAccountants.Columns.Add(colMobile);
+
+                    // ستون 5: ایمیل کاری
+                    DataGridViewTextBoxColumn colEmail = new DataGridViewTextBoxColumn();
+                    colEmail.Name = "WorkEmail";
+                    colEmail.DataPropertyName = "WorkEmail";
+                    colEmail.HeaderText = "ایمیل کاری";
+                    colEmail.Width = 200;
+                    colEmail.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvAccountants.Columns.Add(colEmail);
+
+                    // اتصال داده‌ها
+                    dgvAccountants.DataSource = dt;
+
+                    // تنظیمات ظاهری
+                    dgvAccountants.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvAccountants.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvAccountants.DefaultCellStyle.Font = new Font("B Nazanin", 10);
+
+                    // به‌روزرسانی نوار وضعیت
+                    UpdateStatusBar(dt.Rows.Count);
+
+                    MessageBox.Show($"تعداد حسابداران: {dt.Rows.Count}");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"خطا: {ex.Message}");
+            }
+        }
+        */
+
+        private void UpdateStatusBar(int count)
+        {
+            // پیدا کردن label مربوط به تعداد رکوردها در statusStrip
+            if (statusStrip != null && statusStrip.Items.Count > 2)
+            {
+                ToolStripStatusLabel recordLabel = (ToolStripStatusLabel)statusStrip.Items[2];
+                recordLabel.Text = $"📊 تعداد حسابداران: {count}";
+            }
+        }
+
+        private void AddPersianColumns()
+        {
+            // افزودن هر ستون با عنوان فارسی
+            dgvAccountants.Columns.Add(new DataGridViewTextBoxColumn()
+            {
+                DataPropertyName = "AccountantID",  // نام ستون در دیتابیس
+                HeaderText = "کد",
+                Name = "colId",
+                Width = 80,
+                ReadOnly = true
+            });
+
+            dgvAccountants.Columns.Add(new DataGridViewTextBoxColumn()
+            {
+                DataPropertyName = "FirstName",
+                HeaderText = "نام",
+                Name = "colFirstName",
+                Width = 120
+            });
+
+            dgvAccountants.Columns.Add(new DataGridViewTextBoxColumn()
+            {
+                DataPropertyName = "LastName",
+                HeaderText = "نام خانوادگی",
+                Name = "colLastName",
+                Width = 150
+            });
+
+            dgvAccountants.Columns.Add(new DataGridViewTextBoxColumn()
+            {
+                DataPropertyName = "Mobile",
+                HeaderText = "شماره تلفن",
+                Name = "colPhone",
+                Width = 120
+            });
+
+            dgvAccountants.Columns.Add(new DataGridViewTextBoxColumn()
+            {
+                DataPropertyName = "WorkEmail",
+                HeaderText = "ایمیل",
+                Name = "colEmail",
+                Width = 180
+            });
+        }
+
+
+        /*
+        private void LoadAccountantData()
+        {
+            try
+            {
+                string connectionString = "Server=.;Database=PetrochemicalSalesDB;Integrated Security=true;";
+                string query = "SELECT AccountantID, FirstName, LastName, Mobile, WorkEmail FROM Accountants";
+
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    SqlDataAdapter adapter = new SqlDataAdapter(query, connection);
+                    DataTable dt = new DataTable();
+                    adapter.Fill(dt);
+
+                    // پاک کردن ستون‌های قبلی
+                    dgvAccountants.Columns.Clear();
+
+                    // غیرفعال کردن تولید خودکار ستون‌ها
+                    dgvAccountants.AutoGenerateColumns = false;
+
+                    // اضافه کردن فقط 5 ستون مورد نظر
+
+                    // ستون 1: کد حسابدار
+                    DataGridViewTextBoxColumn colId = new DataGridViewTextBoxColumn();
+                    colId.Name = "AccountantID";
+                    colId.DataPropertyName = "AccountantID";
+                    colId.HeaderText = "کد حسابدار";
+                    colId.Width = 100;
+                    colId.ReadOnly = true;
+                    colId.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvAccountants.Columns.Add(colId);
+
+                    // ستون 2: نام
+                    DataGridViewTextBoxColumn colFirstName = new DataGridViewTextBoxColumn();
+                    colFirstName.Name = "FirstName";
+                    colFirstName.DataPropertyName = "FirstName";
+                    colFirstName.HeaderText = "نام";
+                    colFirstName.Width = 120;
+                    colFirstName.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvAccountants.Columns.Add(colFirstName);
+
+                    // ستون 3: نام خانوادگی
+                    DataGridViewTextBoxColumn colLastName = new DataGridViewTextBoxColumn();
+                    colLastName.Name = "LastName";
+                    colLastName.DataPropertyName = "LastName";
+                    colLastName.HeaderText = "نام خانوادگی";
+                    colLastName.Width = 150;
+                    colLastName.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvAccountants.Columns.Add(colLastName);
+
+                    // ستون 4: تلفن همراه
+                    DataGridViewTextBoxColumn colMobile = new DataGridViewTextBoxColumn();
+                    colMobile.Name = "Mobile";
+                    colMobile.DataPropertyName = "Mobile";
+                    colMobile.HeaderText = "تلفن همراه";
+                    colMobile.Width = 120;
+                    colMobile.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvAccountants.Columns.Add(colMobile);
+
+                    // ستون 5: ایمیل کاری
+                    DataGridViewTextBoxColumn colEmail = new DataGridViewTextBoxColumn();
+                    colEmail.Name = "WorkEmail";
+                    colEmail.DataPropertyName = "WorkEmail";
+                    colEmail.HeaderText = "ایمیل کاری";
+                    colEmail.Width = 200;
+                    colEmail.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvAccountants.Columns.Add(colEmail);
+
+                    // اتصال داده‌ها
+                    dgvAccountants.DataSource = dt;
+
+                    // تنظیمات ظاهری
+                    dgvAccountants.ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle()
+                    {
+                        BackColor = primaryColor,
+                        ForeColor = Color.White,
+                        Font = new Font("B Nazanin", 11, FontStyle.Bold),
+                        Alignment = DataGridViewContentAlignment.MiddleCenter
+                    };
+
+                    dgvAccountants.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvAccountants.DefaultCellStyle.Font = new Font("B Nazanin", 10);
+
+                    // سطرهای متناوب
+                    dgvAccountants.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 249, 250);
+
+                    // به‌روزرسانی نوار وضعیت
+                    UpdateStatusBar(dt.Rows.Count);
+
+                    MessageBox.Show($"داده‌ها با موفقیت بارگذاری شدند. تعداد حسابداران: {dt.Rows.Count}");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"خطا در بارگذاری داده‌ها: {ex.Message}", "خطا",
+                               MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+        */
+
+        private void ConfigureGridViewColumns()
+        {
+            // غیرفعال کردن تولید خودکار ستون‌ها
+            dgvAccountants.AutoGenerateColumns = false;
+
+            // پاک کردن ستون‌های قبلی
+            dgvAccountants.Columns.Clear();
+
+            // اضافه کردن فقط ستون‌های مورد نظر
+            AddCustomColumns();
+        }
+        private void AddCustomColumns()
+        {
+            // لیست فیلدهای مورد نظر شما با عنوان فارسی
+            var columns = new[]
+            {
+        new { Name = "EmployeeCode", Header = "کد پرسنلی", Width = 100 },
+        new { Name = "NationalID", Header = "کد ملی", Width = 100 },
+        new { Name = "FirstName", Header = "نام", Width = 100 },
+        new { Name = "LastName", Header = "نام خانوادگی", Width = 120 },
+        new { Name = "Gender", Header = "جنسیت", Width = 80 },
+        new { Name = "BirthDate", Header = "تاریخ تولد", Width = 100 },
+        new { Name = "MaritalStatus", Header = "وضعیت تاهل", Width = 100 },
+        new { Name = "EducationLevel", Header = "سطح تحصیلات", Width = 120 },
+        new { Name = "DepartmentID", Header = "کد دپارتمان", Width = 100 },
+        new { Name = "Position", Header = "سمت", Width = 150 },
+        new { Name = "JobLevel", Header = "سطح شغلی", Width = 100 },
+        new { Name = "EmploymentType", Header = "نوع استخدام", Width = 120 },
+        new { Name = "HireDate", Header = "تاریخ استخدام", Width = 100 },
+        new { Name = "BaseSalary", Header = "حقوق پایه", Width = 120 },
+        new { Name = "BankAccountNo", Header = "شماره حساب", Width = 150 },
+        new { Name = "BankName", Header = "نام بانک", Width = 120 },
+        new { Name = "BankBranch", Header = "شعبه بانک", Width = 120 },
+        new { Name = "Mobile", Header = "تلفن همراه", Width = 100 },
+        new { Name = "WorkEmail", Header = "ایمیل کاری", Width = 180 },
+        new { Name = "SystemUsername", Header = "نام کاربری", Width = 120 },
+        new { Name = "CostCenterCode", Header = "کد مرکز هزینه", Width = 120 },
+        new { Name = "CreatedDate", Header = "تاریخ ایجاد", Width = 120 },
+        new { Name = "ModifiedDate", Header = "تاریخ ویرایش", Width = 120 },
+        new { Name = "ERPUserID", Header = "کد کاربر ERP", Width = 120 }
+    };
+
+            foreach (var col in columns)
+            {
+                DataGridViewTextBoxColumn column = new DataGridViewTextBoxColumn();
+                column.Name = col.Name;
+                column.DataPropertyName = col.Name;
+                column.HeaderText = col.Header;
+                column.Width = col.Width;
+                column.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+
+                // تنظیم فرمت برای ستون‌های تاریخ
+                if (col.Name.Contains("Date"))
+                {
+                    column.DefaultCellStyle.Format = "yyyy/MM/dd";
+                }
+
+                // تنظیم فرمت برای ستون حقوق
+                if (col.Name == "BaseSalary")
+                {
+                    column.DefaultCellStyle.Format = "N0"; // فرمت عدد با جداکننده هزارگان
+                }
+
+                dgvAccountants.Columns.Add(column);
+            }
+        }
+
+        private void AdjustColumnWidths()
+        {
+            // تنظیم عرض ستون‌ها به صورت متناسب
+            int totalWidth = dgvAccountants.Width - 20; // 20 پیکسل برای اسکرول بار
+
+            // تنظیم عرض ثابت برای برخی ستون‌ها و انعطاف‌پذیر برای بقیه
+            int fixedWidthColumns = 0;
+
+            // ستون‌هایی که عرض ثابت دارند
+            var fixedColumns = new Dictionary<string, int>
+    {
+        {"EmployeeCode", 100},
+        {"NationalID", 100},
+        {"FirstName", 100},
+        {"LastName", 120},
+        {"Gender", 80},
+        {"BirthDate", 100},
+        {"MaritalStatus", 100},
+        {"EducationLevel", 120},
+        {"DepartmentID", 100},
+        {"Position", 150},
+        {"JobLevel", 100},
+        {"EmploymentType", 120},
+        {"HireDate", 100},
+        {"BaseSalary", 120},
+        {"BankAccountNo", 150},
+        {"BankName", 120},
+        {"BankBranch", 120},
+        {"Mobile", 100},
+        {"WorkEmail", 180},
+        {"SystemUsername", 120},
+        {"CostCenterCode", 120},
+        {"CreatedDate", 120},
+        {"ModifiedDate", 120},
+        {"ERPUserID", 120}
+    };
+
+            // اعمال عرض ثابت
+            foreach (DataGridViewColumn column in dgvAccountants.Columns)
+            {
+                if (fixedColumns.ContainsKey(column.Name))
+                {
+                    column.Width = fixedColumns[column.Name];
+                    fixedWidthColumns += column.Width;
+                }
+            }
+
+            // اگر فضای اضافی وجود دارد، به ستون‌های مهم اضافه کنید
+            int remainingWidth = totalWidth - fixedWidthColumns;
+            if (remainingWidth > 0)
+            {
+                // ستون‌هایی که می‌خواهید عرض بیشتری داشته باشند
+                string[] expandableColumns = { "Position", "WorkEmail", "BankAccountNo" };
+
+                foreach (string colName in expandableColumns)
+                {
+                    if (dgvAccountants.Columns.Contains(colName))
+                    {
+                        int extraWidth = remainingWidth / expandableColumns.Length;
+                        dgvAccountants.Columns[colName].Width += extraWidth;
+                    }
+                }
+            }
+        }
         private void CreateDataGridView()
         {
             dgvAccountants = new DataGridView();
             dgvAccountants.Dock = DockStyle.Fill;
-            dgvAccountants.Location = new Point(0, 230);
-            dgvAccountants.Size = new Size(1280, 450);
-
-            // تنظیمات ظاهری
             dgvAccountants.BackgroundColor = Color.White;
             dgvAccountants.BorderStyle = BorderStyle.Fixed3D;
-            dgvAccountants.Font = smallFont;
+            dgvAccountants.Font = new Font("B Nazanin", 10);
             dgvAccountants.RowHeadersVisible = false;
             dgvAccountants.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             dgvAccountants.MultiSelect = false;
             dgvAccountants.AllowUserToAddRows = false;
             dgvAccountants.AllowUserToDeleteRows = false;
-            dgvAccountants.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-            dgvAccountants.ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle()
-            {
-                BackColor = primaryColor,
-                ForeColor = Color.White,
-                Font = new Font("B Nazanin", 11, FontStyle.Bold),
-                Alignment = DataGridViewContentAlignment.MiddleCenter
-            };
 
-            // تنظیم ستون‌ها
-            dgvAccountants.Columns.Clear();
+            // *** تغییر مهم: از Fill به None تغییر دهید ***
+            dgvAccountants.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
 
-            DataGridViewTextBoxColumn col1 = new DataGridViewTextBoxColumn();
-            col1.HeaderText = "کد پرسنلی";
-            col1.DataPropertyName = "EmployeeCode";
-            col1.Width = 100;
-
-            DataGridViewTextBoxColumn col2 = new DataGridViewTextBoxColumn();
-            col2.HeaderText = "نام و نام خانوادگی";
-            col2.DataPropertyName = "FullName";
-            col2.Width = 200;
-
-            DataGridViewTextBoxColumn col3 = new DataGridViewTextBoxColumn();
-            col3.HeaderText = "کد ملی";
-            col3.DataPropertyName = "NationalID";
-            col3.Width = 100;
-
-            DataGridViewTextBoxColumn col4 = new DataGridViewTextBoxColumn();
-            col4.HeaderText = "دپارتمان";
-            col4.DataPropertyName = "DepartmentName";
-            col4.Width = 150;
-
-            DataGridViewTextBoxColumn col5 = new DataGridViewTextBoxColumn();
-            col5.HeaderText = "سمت";
-            col5.DataPropertyName = "Position";
-            col5.Width = 150;
-
-            DataGridViewTextBoxColumn col6 = new DataGridViewTextBoxColumn();
-            col6.HeaderText = "تاریخ استخدام";
-            col6.DataPropertyName = "HireDate";
-            col6.Width = 120;
-
-            DataGridViewCheckBoxColumn col7 = new DataGridViewCheckBoxColumn();
-            col7.HeaderText = "فعال";
-            col7.DataPropertyName = "IsActive";
-            col7.Width = 60;
-
-            DataGridViewButtonColumn actionCol = new DataGridViewButtonColumn();
-            actionCol.HeaderText = "عملیات";
-            actionCol.Text = "مشاهده جزئیات";
-            actionCol.UseColumnTextForButtonValue = true;
-            actionCol.Width = 120;
-
-            dgvAccountants.Columns.AddRange(col1, col2, col3, col4, col5, col6, col7, actionCol);
-
-            // ستون وضعیت فعال/غیرفعال
-            dgvAccountants.CellFormatting += (sender, e) =>
-            {
-                if (e.ColumnIndex == 6 && e.RowIndex >= 0) // ستون IsActive
-                {
-                    if (e.Value != null && bool.TryParse(e.Value.ToString(), out bool isActive))
-                    {
-                        e.CellStyle.BackColor = isActive ? Color.FromArgb(212, 237, 218) : Color.FromArgb(248, 215, 218);
-                        e.CellStyle.ForeColor = isActive ? Color.FromArgb(21, 87, 36) : Color.FromArgb(114, 28, 36);
-                    }
-                }
-            };
-
-            // سطرهای متناوب
-            dgvAccountants.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 249, 250);
+            // ستون‌های DataGridView در متد DisplayAllAccountants تنظیم می‌شوند
 
             this.Controls.Add(dgvAccountants);
+            // برای اطمینان از ترتیب صحیح نمایش
+            dgvAccountants.BringToFront();
         }
 
         private void CreateStatusStrip()
@@ -848,5 +1327,278 @@ namespace PetrochemicalSalesSystem.Forms
 
             return button;
         }
+
+
+
+
+        //
+        //
+        //
+        //
+
+
+
+
+        private void LoadAccountantData()
+        {
+            try
+            {
+                string connectionString = "Server=.;Database=PetrochemicalSalesDB;Integrated Security=true;";
+                string query = "SELECT AccountantID, FirstName, LastName, Mobile, WorkEmail FROM Accountants";
+
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    SqlDataAdapter adapter = new SqlDataAdapter(query, connection);
+                    DataTable dt = new DataTable();
+                    adapter.Fill(dt);
+
+                    // *** دیباگ: نمایش DataTable ***
+                    MessageBox.Show($"تعداد ردیف‌های DataTable: {dt.Rows.Count}\n" +
+                                  $"تعداد ستون‌های DataTable: {dt.Columns.Count}",
+                                  "اطلاعات DataTable");
+
+                    // پاک کردن ستون‌های قبلی
+                    dgvAccountants.Columns.Clear();
+
+                    // غیرفعال کردن تولید خودکار ستون‌ها
+                    dgvAccountants.AutoGenerateColumns = false;
+
+                    // *** درست کردن DataPropertyName ها - توجه به حروف بزرگ و کوچک ***
+                    // ستون 1: کد حسابدار
+                    DataGridViewTextBoxColumn colId = new DataGridViewTextBoxColumn();
+                    colId.Name = "AccountantID";
+                    colId.DataPropertyName = "AccountantID"; // دقیقاً همان نام ستون در DataTable
+                    colId.HeaderText = "کد حسابدار";
+                    colId.Width = 100;
+                    colId.ReadOnly = true;
+                    colId.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvAccountants.Columns.Add(colId);
+
+                    // ستون 2: نام - *** اصلاح شده ***
+                    DataGridViewTextBoxColumn colFirstName = new DataGridViewTextBoxColumn();
+                    colFirstName.Name = "FirstName";
+                    colFirstName.DataPropertyName = "FirstName"; // با حرف بزرگ N
+                    colFirstName.HeaderText = "نام"; // اینجا تصحیح شد
+                    colFirstName.Width = 120;
+                    colFirstName.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvAccountants.Columns.Add(colFirstName);
+
+                    // ستون 3: نام خانوادگی - *** اصلاح شده ***
+                    DataGridViewTextBoxColumn colLastName = new DataGridViewTextBoxColumn();
+                    colLastName.Name = "LastName";
+                    colLastName.DataPropertyName = "LastName"; // با حرف بزرگ N
+                    colLastName.HeaderText = "نام خانوادگی"; // اینجا تصحیح شد
+                    colLastName.Width = 150;
+                    colLastName.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvAccountants.Columns.Add(colLastName);
+
+                    // ستون 4: تلفن همراه
+                    DataGridViewTextBoxColumn colMobile = new DataGridViewTextBoxColumn();
+                    colMobile.Name = "Mobile";
+                    colMobile.DataPropertyName = "Mobile";
+                    colMobile.HeaderText = "تلفن همراه";
+                    colMobile.Width = 120;
+                    colMobile.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvAccountants.Columns.Add(colMobile);
+
+                    // ستون 5: ایمیل کاری
+                    DataGridViewTextBoxColumn colEmail = new DataGridViewTextBoxColumn();
+                    colEmail.Name = "WorkEmail";
+                    colEmail.DataPropertyName = "WorkEmail";
+                    colEmail.HeaderText = "ایمیل کاری";
+                    colEmail.Width = 200;
+                    colEmail.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dgvAccountants.Columns.Add(colEmail);
+
+                    // *** دیباگ: بررسی تطبیق ستون‌ها ***
+                    CheckColumnMapping(dt);
+
+                    // اتصال داده‌ها
+                    dgvAccountants.DataSource = dt;
+
+                    // *** تأیید نمایش داده‌ها ***
+                    MessageBox.Show($"DataGridView پس از اتصال:\n" +
+                                  $"تعداد ستون‌ها: {dgvAccountants.Columns.Count}\n" +
+                                  $"تعداد ردیف‌ها: {dgvAccountants.Rows.Count}\n" +
+                                  $"DataSource تنظیم شد: {(dgvAccountants.DataSource != null ? "بله" : "خیر")}",
+                                  "تأیید اتصال");
+
+                    UpdateStatusBar(dt.Rows.Count);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"خطا: {ex.Message}", "خطا",
+                               MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+        /*
+        private void LoadAccountantDataFinal()
+        {
+            try
+            {
+                string connectionString = "Server=.;Database=PetrochemicalSalesDB;Integrated Security=true;";
+                string query = "SELECT AccountantID, FirstName, LastName, Mobile, WorkEmail FROM Accountants";
+
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    SqlDataAdapter adapter = new SqlDataAdapter(query, connection);
+                    DataTable dt = new DataTable();
+                    adapter.Fill(dt);
+
+                    // 1. پاک کردن کامل
+                    dgvAccountants.DataSource = null;
+                    dgvAccountants.Columns.Clear();
+                    dgvAccountants.Rows.Clear();
+
+                    // 2. ایجاد ستون‌ها با دقت
+                    CreateAccurateColumns();
+
+                    // 3. اتصال داده‌ها
+                    dgvAccountants.DataSource = dt;
+
+                    // 4. Reset binding
+                    dgvAccountants.DataSource = null;
+                    dgvAccountants.DataSource = dt;
+
+                    // 5. Refresh
+                    dgvAccountants.Refresh();
+                    dgvAccountants.Invalidate();
+
+                    // 6. بررسی نهایی
+                    if (dgvAccountants.Rows.Count > 0)
+                    {
+                        MessageBox.Show($"موفق! داده‌ها نمایش داده می‌شوند.\n" +
+                                      $"ردیف اول: {dgvAccountants.Rows[0].Cells["FirstName"].Value} " +
+                                      $"{dgvAccountants.Rows[0].Cells["LastName"].Value}");
+                    }
+
+                    UpdateStatusBar(dt.Rows.Count);
+
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"خطا: {ex.Message}");
+            }
+
+        }
+        */
+        private void CreateAccurateColumns()
+        {
+            dgvAccountants.AutoGenerateColumns = false;
+
+            // استفاده از لیست برای اطمینان از تطبیق دقیق
+            var columns = new[]
+            {
+        new { Name = "AccountantID", Header = "کد حسابدار", Width = 100 },
+        new { Name = "FirstName", Header = "نام", Width = 120 },
+        new { Name = "LastName", Header = "نام خانوادگی", Width = 150 },
+        new { Name = "Mobile", Header = "تلفن همراه", Width = 120 },
+        new { Name = "WorkEmail", Header = "ایمیل کاری", Width = 200 }
+    };
+
+            foreach (var col in columns)
+            {
+                DataGridViewTextBoxColumn column = new DataGridViewTextBoxColumn();
+                column.Name = col.Name;
+                column.DataPropertyName = col.Name; // تطبیق دقیق
+                column.HeaderText = col.Header;
+                column.Width = col.Width;
+                column.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+
+                dgvAccountants.Columns.Add(column);
+            }
+        }
+        private void CheckColumnMapping(DataTable dt)
+        {
+            string mappingInfo = "بررسی تطبیق ستون‌ها:\n\n";
+
+            // بررسی نام ستون‌های DataTable
+            mappingInfo += "ستون‌های DataTable:\n";
+            foreach (DataColumn col in dt.Columns)
+            {
+                mappingInfo += $"- {col.ColumnName}\n";
+            }
+
+            mappingInfo += "\nستون‌های DataGridView:\n";
+            foreach (DataGridViewColumn col in dgvAccountants.Columns)
+            {
+                mappingInfo += $"- Name: {col.Name}, DataPropertyName: {col.DataPropertyName}, HeaderText: {col.HeaderText}\n";
+            }
+
+            MessageBox.Show(mappingInfo, "بررسی تطبیق");
+        }
+
+        private void DebugDataTable(DataTable dt)
+        {
+            MessageBox.Show(
+                $"تعداد ردیف‌های DataTable: {dt.Rows.Count}\n" +
+                $"تعداد ستون‌های DataTable: {dt.Columns.Count}",
+                "اطلاعات DataTable");
+
+            if (dt.Rows.Count > 0)
+            {
+                string firstRow = "محتویات اولین ردیف:\n";
+                for (int i = 0; i < dt.Columns.Count; i++)
+                {
+                    firstRow += $"{dt.Columns[i].ColumnName}: {dt.Rows[0][i]}\n";
+                }
+                MessageBox.Show(firstRow, "نمونه داده");
+            }
+        }
+
+        private void CreateColumnsWithExactMatch(DataTable dt)
+        {
+            // بررسی وجود ستون‌ها و ایجاد آنها
+            string[] columnNames = { "AccountantID", "FirstName", "LastName", "Mobile", "WorkEmail" };
+            string[] persianTitles = { "کد حسابدار", "نام", "نام خانوادگی", "تلفن همراه", "ایمیل کاری" };
+            int[] columnWidths = { 100, 120, 150, 120, 200 };
+
+            for (int i = 0; i < columnNames.Length; i++)
+            {
+                if (dt.Columns.Contains(columnNames[i]))
+                {
+                    DataGridViewTextBoxColumn column = new DataGridViewTextBoxColumn();
+                    column.Name = columnNames[i];
+                    column.DataPropertyName = columnNames[i]; // این مهم است!
+                    column.HeaderText = persianTitles[i];
+                    column.Width = columnWidths[i];
+                    column.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+
+                    dgvAccountants.Columns.Add(column);
+                    MessageBox.Show($"ستون '{columnNames[i]}' با DataPropertyName '{column.DataPropertyName}' اضافه شد.",
+                                   "ایجاد ستون");
+                }
+                else
+                {
+                    MessageBox.Show($"ستون '{columnNames[i]}' در DataTable یافت نشد!", "هشدار",
+                                   MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+        }
+
+        private void DebugDataGridView()
+        {
+            MessageBox.Show(
+                $"تعداد ستون‌های DataGridView: {dgvAccountants.Columns.Count}\n" +
+                $"تعداد ردیف‌های DataGridView: {dgvAccountants.Rows.Count}\n" +
+                $"AutoGenerateColumns: {dgvAccountants.AutoGenerateColumns}\n" +
+                $"DataSource: {dgvAccountants.DataSource}",
+                "اطلاعات DataGridView");
+
+            // بررسی DataPropertyName ستون‌ها
+            string dgvColumns = "ستون‌های DataGridView:\n";
+            foreach (DataGridViewColumn col in dgvAccountants.Columns)
+            {
+                dgvColumns += $"نام: {col.Name}, DataPropertyName: {col.DataPropertyName}, HeaderText: {col.HeaderText}\n";
+            }
+            MessageBox.Show(dgvColumns, "مشخصات ستون‌ها");
+        }
+
+
+
+
+
     }
 }

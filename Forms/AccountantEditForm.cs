@@ -121,8 +121,7 @@ namespace PetrochemicalSalesSystem.Forms
         private void CreateHeaderPanel()
         {
             headerPanel = new Panel();
-            headerPanel.Dock = DockStyle.Top;
-            headerPanel.Height = 80;
+            headerPanel.Height = 40;
             headerPanel.BackColor = primaryColor;
 
             Label titleLabel = new Label();
@@ -296,10 +295,40 @@ namespace PetrochemicalSalesSystem.Forms
             AddLabelToTable(table, "کد بیمه", 0, 7);
             AddTextBoxToTable(table, "txtInsuranceID", 1, 7);
 
+            AddLabelToTable(table, "تحصیلات *", 2, 7);
+            AddTextBoxToTable(table, "txtEducationLevel", 3, 7);
+
+
             tab.Controls.Add(table);
             return tab;
         }
 
+        private string[] GenericListToStringArray(string[] initialArray,List<Department> list)
+        {
+            List<string> tempList = new List<string>(initialArray);
+            List<string> combinedList = new List<string>(tempList);
+
+            for (int i = 0; i < GetDepartments().Count; i++)
+            {
+                combinedList.Add(list[i].ToString());
+            }
+
+            string[] resultArray = combinedList.ToArray();
+            return resultArray;
+        }
+        private string[] GenericListToStringArray(string[] initialArray, List<Accountant> list)
+        {
+            List<string> tempList = new List<string>(initialArray);
+            List<string> combinedList = new List<string>(tempList);
+
+            for (int i = 0; i < GetDepartments().Count; i++)
+            {
+                combinedList.Add(list[i].ToString());
+            }
+
+            string[] resultArray = combinedList.ToArray();
+            return resultArray;
+        }
         private TabPage CreateJobTab()
         {
             TabPage tab = new TabPage("💼 اطلاعات شغلی");
@@ -313,7 +342,10 @@ namespace PetrochemicalSalesSystem.Forms
 
             // ردیف 1: دپارتمان و سمت
             AddLabelToTable(table, "دپارتمان *", 0, 0);
-            AddComboBoxToTable(table, "cmbDepartment", 1, 0, GetDepartments());
+            // تبدیل به آرایه
+            string[] initializeDepartments = { "فناوری اطلاعات","منابع انسانی","مدریت بازرگانی"};
+            string[] resultDepartmentsArray = GenericListToStringArray(initializeDepartments,GetDepartments());
+            AddComboBoxToTable(table, "cmbDepartment", 1, 0, resultDepartmentsArray);
 
             AddLabelToTable(table, "سمت *", 2, 0);
             AddTextBoxToTable(table, "txtPosition", 3, 0);
@@ -336,7 +368,9 @@ namespace PetrochemicalSalesSystem.Forms
 
             // ردیف 4: مدیر مستقیم و فرد پشتیبان
             AddLabelToTable(table, "مدیر مستقیم", 0, 3);
-            AddComboBoxToTable(table, "cmbManager", 1, 3, GetManagers());
+            string[] initializeManagers = { "مدیر مالی", "مدیر منابع انسانی", "مدیر بازرگانی" };
+            string[] resultManagersArray = GenericListToStringArray(initializeManagers, GetManagers());
+            AddComboBoxToTable(table, "cmbManager", 1, 3, resultManagersArray);
 
             AddLabelToTable(table, "فرد پشتیبان", 2, 3);
             AddComboBoxToTable(table, "cmbBackupPerson", 3, 3, GetAccountants());
@@ -734,7 +768,6 @@ namespace PetrochemicalSalesSystem.Forms
             label.Text = text;
             label.Font = normalFont;
             label.TextAlign = ContentAlignment.MiddleLeft;
-            label.Dock = DockStyle.Fill;
             label.Margin = new Padding(5);
             table.Controls.Add(label, column, row);
         }
