@@ -1,8 +1,8 @@
-﻿using PetrochemicalSalesSystem.Forms;
-using System;
+﻿using System;
 using System.Windows.Forms;
+using PetrochemicalSalesSystem.Forms;
 
-namespace PetrochemicalAccountantSystem
+namespace PetrochemicalSalesSystem
 {
     static class Program
     {
@@ -12,11 +12,17 @@ namespace PetrochemicalAccountantSystem
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            // نمایش فرم لاگین
-            MainForm loginForm = new MainForm();
+            // ایجاد و نمایش فرم لاگین
+            LoginForm loginForm = new LoginForm();
+
             if (loginForm.ShowDialog() == DialogResult.OK)
             {
-                Application.Run(new MainForm());
+                // اگر لاگین موفق بود، فرم اصلی را اجرا کن
+                Application.Run(new AccountantForm());
+            }
+            else
+            {
+                Application.Exit();
             }
         }
     }

@@ -1,9 +1,13 @@
 ﻿using System;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace PetrochemicalSalesSystem.Models
 {
     public class Accountant
     {
+        public string Username { get; set; }
+        public string Password { get; set; }
         public long AccountantID { get; set; }
         public string EmployeeCode { get; set; }
         public string NationalID { get; set; }
