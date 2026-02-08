@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Windows.Forms;
 using PetrochemicalSalesSystem.Forms;
+using PetrochemicalSalesSystem.Utilities;
 
 namespace PetrochemicalSalesSystem
 {
@@ -12,16 +13,35 @@ namespace PetrochemicalSalesSystem
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            // ایجاد و نمایش فرم لاگین
+            // اجرای فرم لاگین
             LoginForm loginForm = new LoginForm();
+            DialogResult loginResult = loginForm.ShowDialog();
 
-            if (loginForm.ShowDialog() == DialogResult.OK)
+            // بررسی نتیجه لاگین
+            if (loginResult == DialogResult.OK)
             {
-                // اگر لاگین موفق بود، فرم اصلی را اجرا کن
-                Application.Run(new AccountantForm());
+                // اگر لاگین موفق بود، بررسی نوع کاربر و باز کردن فرم مناسب
+                if (SessionManager.IsAdmin)
+                {
+                    // مدیر به MainForm هدایت می‌شود
+                    Application.Run(new MainForm());
+                }
+                else if (SessionManager.IsAccountant)
+                {
+                    // حسابدار به AccountantForm هدایت می‌شود
+                    // اگر AccountantForm ندارید، می‌توانید از MainForm استفاده کنید
+                    Application.Run(new AccountantForm()); // یا new MainForm()
+                }
+                else
+                {
+                    // نوع کاربر نامشخص
+                    MessageBox.Show("نوع کاربر نامشخص است.", "خطا");
+                    Application.Exit();
+                }
             }
             else
             {
+                // اگر کاربر لاگین نکرد یا فرم را بست
                 Application.Exit();
             }
         }

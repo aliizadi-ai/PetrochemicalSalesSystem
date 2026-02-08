@@ -139,6 +139,7 @@ namespace PetrochemicalSalesSystem.Forms
             txtPass.KeyDown += TextBox_KeyDown;
         }
 
+        /*
         private void BtnLogin_Click(object sender, EventArgs e)
         {
             // غیرفعال کردن دکمه هنگام پردازش
@@ -178,7 +179,6 @@ namespace PetrochemicalSalesSystem.Forms
                     // ذخیره اطلاعات کاربر در Session
                     SessionManager.CurrentUser = result.Accountant;
 
-                    /*
                     // ذخیره اطلاعات برای "مرا به خاطر بسپار"
                     if (chkRemember.Checked)
                     {
@@ -188,7 +188,6 @@ namespace PetrochemicalSalesSystem.Forms
                     {
                         ClearRememberMe();
                     }
-                    */
 
                     MessageBox.Show($"خوش آمدید {result.Accountant.FullName}!",
                         "ورود موفق", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -197,13 +196,13 @@ namespace PetrochemicalSalesSystem.Forms
                     this.DialogResult = DialogResult.OK;
                     this.Close(); // فرم لاگین بسته می‌شود
 
-                    /*
+                    
                     // باز کردن فرم اصلی
                     this.Hide();
                     var accountantEditForm = new AccountantEditForm(); // فرم اصلی برنامه
                     accountantEditForm.Closed += (s, args) => this.Close();
                     accountantEditForm.Show();
-                    */
+                    
                 }
                 else
                 {
@@ -223,6 +222,7 @@ namespace PetrochemicalSalesSystem.Forms
                 ResetLoginButton();
             }
         }
+        */
 
         private void TextBox_KeyDown(object sender, KeyEventArgs e)
         {
@@ -273,6 +273,107 @@ namespace PetrochemicalSalesSystem.Forms
             }
         }
         */
+        private void BtnLogin_Click(object sender, EventArgs e)
+        {
+            // غیرفعال کردن دکمه هنگام پردازش
+            btnLogin.Enabled = false;
+            btnLogin.Text = "در حال بررسی...";
+            btnLogin.BackColor = Color.Gray;
 
+            string username = txtUser.Text.Trim();
+            string password = txtPass.Text;
+
+            // اعتبارسنجی اولیه
+            if (string.IsNullOrEmpty(username))
+            {
+                MessageBox.Show("لطفاً نام کاربری را وارد کنید.", "خطا",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ResetLoginButton();
+                txtUser.Focus();
+                return;
+            }
+
+            if (string.IsNullOrEmpty(password))
+            {
+                MessageBox.Show("لطفاً رمز عبور را وارد کنید.", "خطا",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ResetLoginButton();
+                txtPass.Focus();
+                return;
+            }
+
+            try
+            {
+                // فراخوانی سرویس احراز هویت
+                var authService = new AuthService();
+                var result = authService.ValidateLogin(username, password);
+
+                if (result.IsValid && result.User != null)
+                {
+                    // ذخیره اطلاعات کاربر در Session
+                    SessionManager.CurrentUser = result.User;
+
+                    // ذخیره اطلاعات برای "مرا به خاطر بسپار"
+                    if (chkRemember.Checked)
+                    {
+                        //SaveRememberMe(username);
+                    }
+                    else
+                    {
+                        //ClearRememberMe();
+                    }
+
+                    // نمایش پیام خوش‌آمدگویی
+                    string welcomeMessage = result.Type == AuthService.UserType.Admin
+                        ? $"خوش آمدید مدیر {SessionManager.FullName}!"
+                        : $"خوش آمدید حسابدار {SessionManager.FullName}!";
+
+                    //MessageBox.Show(welcomeMessage, "ورود موفق",
+                    //    MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    // هدایت به فرم مناسب بر اساس نوع کاربر
+                    this.Hide();
+
+                    if (result.Type == AuthService.UserType.Admin)
+                    {
+                        // مدیر به MainForm هدایت می‌شود
+                        var mainForm = new MainForm();
+                        //mainForm.Closed += (s, args) => this.Close();
+                        //mainForm.Show();
+                        // تنظیم DialogResult به OK برای بستن فرم
+                        this.DialogResult = DialogResult.OK;
+                        this.Close(); // فرم لاگین بسته می‌شود
+                    }
+                    else if (result.Type == AuthService.UserType.Accountant)
+                    {
+                        // حسابدار به AccountantMainForm (یا همان MainForm فعلی) هدایت می‌شود
+                        // اگر می‌خواهید فرم جداگانه‌ای برای حسابداران داشته باشید،
+                        // می‌توانید AccountantMainForm ایجاد کنید
+                        var accountantForm = new AccountantForm(); // یا new AccountantMainForm()
+                        //accountantForm.Closed += (s, args) => this.Close();
+                        //accountantForm.Show();
+                        // تنظیم DialogResult به OK برای بستن فرم
+                        this.DialogResult = DialogResult.OK;
+                        this.Close(); // فرم لاگین بسته می‌شود
+                    }
+                }
+                else
+                {
+                    MessageBox.Show(result.ErrorMessage, "خطای ورود",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    ResetLoginButton();
+
+                    // پاک کردن فیلد رمز عبور
+                    txtPass.Text = "";
+                    txtPass.Focus();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"خطا در اتصال به پایگاه داده:\n{ex.Message}",
+                    "خطای سیستم", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ResetLoginButton();
+            }
+        }
     }
 }

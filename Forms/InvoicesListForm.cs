@@ -1,6 +1,10 @@
 ﻿using PetrochemicalAccountantSystem.Forms;
+using PetrochemicalSalesSystem.Models;
+using PetrochemicalSalesSystem.Services;
+using PetrochemicalSalesSystem.Utilities;
 using System;
 using System.Data;
+using System.Data.SqlClient;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -131,9 +135,218 @@ namespace PetrochemicalSalesSystem.Forms
             btnExport.ForeColor = Color.White;
             btnExport.Click += BtnExport_Click;
 
+
+            // فیلتر مشتری
+            Label lblCustomer = new Label();
+            lblCustomer.Text = "مشتری:";
+            lblCustomer.Font = new Font("B Nazanin", 10);
+            lblCustomer.Size = new Size(50, 25);
+            lblCustomer.Location = new Point(560, 20);
+
+            ComboBox cmbCustomer = new ComboBox();
+            cmbCustomer.Size = new Size(150, 25);
+            cmbCustomer.Location = new Point(615, 20);
+            cmbCustomer.Font = new Font("B Nazanin", 10);
+            cmbCustomer.DropDownStyle = ComboBoxStyle.DropDownList;
+            LoadCustomersToComboBox(cmbCustomer);
+
+            // فیلتر مبلغ
+            Label lblAmount = new Label();
+            lblAmount.Text = "مبلغ از:";
+            lblAmount.Font = new Font("B Nazanin", 10);
+            lblAmount.Size = new Size(60, 25);
+            lblAmount.Location = new Point(20, 55);
+
+            TextBox txtMinAmount = new TextBox();
+            txtMinAmount.Size = new Size(100, 25);
+            txtMinAmount.Location = new Point(85, 55);
+            txtMinAmount.Font = new Font("B Nazanin", 10);
+            txtMinAmount.Text = "حداقل";
+
+            Label lblToAmount = new Label();
+            lblToAmount.Text = "تا:";
+            lblToAmount.Font = new Font("B Nazanin", 10);
+            lblToAmount.Size = new Size(30, 25);
+            lblToAmount.Location = new Point(190, 55);
+
+            TextBox txtMaxAmount = new TextBox();
+            txtMaxAmount.Size = new Size(100, 25);
+            txtMaxAmount.Location = new Point(225, 55);
+            txtMaxAmount.Font = new Font("B Nazanin", 10);
+            txtMaxAmount.Text = "حداکثر";
+
+            // جستجوی سریع
+            Label lblQuickSearch = new Label();
+            lblQuickSearch.Text = "جستجوی سریع:";
+            lblQuickSearch.Font = new Font("B Nazanin", 10);
+            lblQuickSearch.Size = new Size(80, 25);
+            lblQuickSearch.Location = new Point(340, 55);
+
+            TextBox txtQuickSearch = new TextBox();
+            txtQuickSearch.Size = new Size(200, 25);
+            txtQuickSearch.Location = new Point(425, 55);
+            txtQuickSearch.Font = new Font("B Nazanin", 10);
+            txtQuickSearch.Text = "شماره فاکتور، نام مشتری، ...";
+            txtQuickSearch.TextChanged += TxtQuickSearch_TextChanged;
+
+            // دکمه تنظیم مجدد فیلترها
+            Button btnReset = new Button();
+            btnReset.Text = "🗑️ پاک کردن فیلترها";
+            btnReset.Size = new Size(140, 25);
+            btnReset.Location = new Point(640, 55);
+            btnReset.Font = new Font("B Nazanin", 9);
+            btnReset.BackColor = Color.FromArgb(231, 76, 60);
+            btnReset.ForeColor = Color.White;
+            btnReset.Click += BtnReset_Click;
+
+            filterPanel.Controls.AddRange(new Control[] {
+        lblCustomer, cmbCustomer, lblAmount, txtMinAmount, lblToAmount, txtMaxAmount,
+        lblQuickSearch, txtQuickSearch, btnReset
+    });
+
+
             filterPanel.Controls.Add(btnSearch);
             filterPanel.Controls.Add(btnExport);
             this.Controls.Add(filterPanel);
+        }
+        private void LoadCustomersToComboBox(ComboBox cmb)
+        {
+            try
+            {
+                string query = "SELECT DISTINCT CustomerName FROM Invoices ORDER BY CustomerName";
+                DataTable dt = Data.DatabaseHelper.ExecuteQuery(query);
+
+                cmb.Items.Add("همه مشتریان");
+                foreach (DataRow row in dt.Rows)
+                {
+                    cmb.Items.Add(row["CustomerName"]);
+                }
+                cmb.SelectedIndex = 0;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"خطا در بارگذاری مشتریان: {ex.Message}");
+            }
+        }
+
+        private void TxtQuickSearch_TextChanged(object sender, EventArgs e)
+        {
+            // فیلتر کردن DataGridView بر اساس جستجوی سریع
+            string searchText = ((TextBox)sender).Text.Trim().ToLower();
+
+            if (string.IsNullOrEmpty(searchText))
+            {
+                foreach (DataGridViewRow row in dgvInvoices.Rows)
+                {
+                    row.Visible = true;
+                }
+            }
+            else
+            {
+                foreach (DataGridViewRow row in dgvInvoices.Rows)
+                {
+                    bool visible = false;
+
+                    // جستجو در ستون‌های مهم
+                    foreach (DataGridViewCell cell in row.Cells)
+                    {
+                        if (cell.Value != null &&
+                            cell.Value.ToString().ToLower().Contains(searchText))
+                        {
+                            visible = true;
+                            break;
+                        }
+                    }
+
+                    row.Visible = visible;
+                }
+            }
+        }
+        // در فرم InvoicesListForm:
+        private void BtnExportExcel_Click(object sender, EventArgs e)
+        {
+            SaveFileDialog saveDialog = new SaveFileDialog();
+            saveDialog.Filter = "فایل Excel|*.xlsx";
+            saveDialog.FileName = $"گزارش_فاکتورها_{DateTime.Now:yyyyMMdd}.xlsx";
+
+            if (saveDialog.ShowDialog() == DialogResult.OK)
+            {
+                ExportService exportService = new ExportService();
+
+                // تبدیل DataGridView به DataTable
+                DataTable dt = GetDataTableFromDGV(dgvInvoices);
+
+                if (exportService.ExportToExcel(dt, saveDialog.FileName))
+                {
+                    MessageBox.Show("خروجی Excel با موفقیت ایجاد شد.", "موفقیت");
+
+                    // باز کردن فایل
+                    System.Diagnostics.Process.Start(saveDialog.FileName);
+                }
+            }
+        }
+        /*
+        private void BtnExportPdf_Click(object sender, EventArgs e)
+        {
+            SaveFileDialog saveDialog = new SaveFileDialog();
+            saveDialog.Filter = "فایل PDF|*.pdf";
+            saveDialog.FileName = $"گزارش_فاکتورها_{DateTime.Now:yyyyMMdd}.pdf";
+
+            if (saveDialog.ShowDialog() == DialogResult.OK)
+            {
+                ExportService exportService = new ExportService();
+                DataTable dt = GetDataTableFromDGV(dgvInvoices);
+
+                if (exportService.ExportToPdf(dt, saveDialog.FileName, "گزارش فاکتورهای فروش"))
+                {
+                    MessageBox.Show("خروجی PDF با موفقیت ایجاد شد.", "موفقیت");
+                    System.Diagnostics.Process.Start(saveDialog.FileName);
+                }
+            }
+        }
+        */
+        private DataTable GetDataTableFromDGV(DataGridView dgv)
+        {
+            DataTable dt = new DataTable();
+
+            // اضافه کردن ستون‌ها
+            foreach (DataGridViewColumn column in dgv.Columns)
+            {
+                if (column.Visible && column.Name != "Actions")
+                {
+                    dt.Columns.Add(column.HeaderText);
+                }
+            }
+
+            // اضافه کردن داده‌ها
+            foreach (DataGridViewRow row in dgv.Rows)
+            {
+                if (row.Visible)
+                {
+                    DataRow dr = dt.NewRow();
+                    int colIndex = 0;
+
+                    foreach (DataGridViewColumn column in dgv.Columns)
+                    {
+                        if (column.Visible && column.Name != "Actions")
+                        {
+                            dr[colIndex] = row.Cells[column.Name].Value?.ToString() ?? "";
+                            colIndex++;
+                        }
+                    }
+
+                    dt.Rows.Add(dr);
+                }
+            }
+
+            return dt;
+        }
+
+        private void BtnReset_Click(object sender, EventArgs e)
+        {
+            // ریست کردن تمام فیلدهای فیلتر
+            // ...
+            LoadInvoicesData(); // بارگذاری مجدد تمام داده‌ها
         }
 
         private void CreateActionButtons()
@@ -179,18 +392,33 @@ namespace PetrochemicalSalesSystem.Forms
                 }
             };
 
-            Button btnPrint = new Button();
-            btnPrint.Text = "🖨️ چاپ انتخاب شده";
-            btnPrint.Size = new Size(150, 35);
-            btnPrint.Location = new Point(440, 10);
-            btnPrint.Font = new Font("B Nazanin", 10, FontStyle.Bold);
-            btnPrint.BackColor = Color.FromArgb(155, 89, 182);
-            btnPrint.ForeColor = Color.White;
+            // دکمه چاپ فاکتور - این همان btnPrintInvoice است
+            Button btnPrintInvoice = new Button();
+            btnPrintInvoice.Text = "🖨️ چاپ فاکتور";
+            btnPrintInvoice.Name = "btnPrintInvoice"; // نام گذاری
+            btnPrintInvoice.Size = new Size(150, 35);
+            btnPrintInvoice.Location = new Point(440, 10);
+            btnPrintInvoice.Font = new Font("B Nazanin", 10, FontStyle.Bold);
+            btnPrintInvoice.BackColor = Color.FromArgb(155, 89, 182);
+            btnPrintInvoice.ForeColor = Color.White;
+            btnPrintInvoice.Click += BtnPrintInvoice_Click; // رویداد کلیک
+
+            // دکمه خروجی
+            Button btnExport = new Button();
+            btnExport.Text = "📥 خروجی Excel";
+            btnExport.Size = new Size(150, 35);
+            btnExport.Location = new Point(600, 10);
+            btnExport.Font = new Font("B Nazanin", 10, FontStyle.Bold);
+            btnExport.BackColor = Color.FromArgb(46, 204, 113);
+            btnExport.ForeColor = Color.White;
+            btnExport.Click += BtnExportExcel_Click;
 
             actionPanel.Controls.Add(btnView);
             actionPanel.Controls.Add(btnEdit);
             actionPanel.Controls.Add(btnDelete);
-            actionPanel.Controls.Add(btnPrint);
+            actionPanel.Controls.Add(btnPrintInvoice);
+            actionPanel.Controls.Add(btnExport);
+
             this.Controls.Add(actionPanel);
         }
 
@@ -256,6 +484,223 @@ namespace PetrochemicalSalesSystem.Forms
             // نمایش فرم جزئیات فاکتور
             AccountantDetailForm detailsForm = new AccountantDetailForm(invoiceId);
             detailsForm.ShowDialog();
+        }
+
+        // در فرم InvoicesListForm به دکمه چاپ اضافه کنید:
+        private void BtnPrintInvoice_Click(object sender, EventArgs e)
+        {
+            if (dgvInvoices.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("لطفاً یک فاکتور را از لیست انتخاب کنید.", "هشدار",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                // دریافت InvoiceID از ردیف انتخاب شده
+                long invoiceId = Convert.ToInt64(dgvInvoices.SelectedRows[0].Cells["InvoiceID"].Value);
+
+                // منوی انتخاب نوع چاپ
+                ContextMenuStrip printMenu = new ContextMenuStrip();
+                printMenu.Font = new Font("B Nazanin", 10);
+
+                // آیتم‌های منو
+                ToolStripMenuItem previewItem = new ToolStripMenuItem("👁️ پیش‌نمایش چاپ");
+                previewItem.Click += (s, args) => PrintInvoice(invoiceId, PrintMode.Preview);
+                printMenu.Items.Add(previewItem);
+
+                ToolStripMenuItem printItem = new ToolStripMenuItem("🖨️ چاپ مستقیم");
+                printItem.Click += (s, args) => PrintInvoice(invoiceId, PrintMode.Direct);
+                printMenu.Items.Add(printItem);
+
+                //ToolStripMenuItem pdfItem = new ToolStripMenuItem("💾 ذخیره به PDF");
+                //pdfItem.Click += (s, args) => SaveInvoiceToPdf(invoiceId);
+                //printMenu.Items.Add(pdfItem);
+
+                ToolStripMenuItem excelItem = new ToolStripMenuItem("📊 ذخیره به Excel");
+                excelItem.Click += (s, args) => SaveInvoiceToExcel(invoiceId);
+                printMenu.Items.Add(excelItem);
+
+                // نمایش منو
+                Button btn = sender as Button;
+                printMenu.Show(btn, new Point(0, btn.Height));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"خطا در آماده‌سازی چاپ: {ex.Message}", "خطا");
+            }
+        }
+
+        private enum PrintMode { Preview, Direct }
+
+
+        // متد چاپ فاکتور
+        private void PrintInvoice(long invoiceId, PrintMode mode)
+        {
+            try
+            {
+                // دریافت اطلاعات فاکتور از دیتابیس
+                InvoiceService invoiceService = new InvoiceService();
+                var invoice = invoiceService.GetInvoiceById(invoiceId);
+
+                if (invoice == null)
+                {
+                    MessageBox.Show("فاکتور یافت نشد.", "خطا");
+                    return;
+                }
+
+                // دریافت آیتم‌های فاکتور
+                string itemsQuery = @"
+            SELECT 
+                ROW_NUMBER() OVER (ORDER BY ItemID) as ردیف,
+                ProductName as 'نام محصول',
+                Unit as واحد,
+                Quantity as تعداد,
+                FORMAT(UnitPrice, 'N0') as 'قیمت واحد',
+                FORMAT(DiscountAmount, 'N0') as 'تخفیف',
+                FORMAT(LineTotal, 'N0') as 'مبلغ'
+            FROM InvoiceItems 
+            WHERE InvoiceID = @InvoiceID";
+
+                SqlParameter[] parameters = new SqlParameter[]
+                {
+            new SqlParameter("@InvoiceID", SqlDbType.BigInt) { Value = invoiceId }
+                };
+
+                DataTable itemsData = Data.DatabaseHelper.ExecuteQuery(itemsQuery, parameters);
+
+                // ساخت کلاس پرینتر
+                var printer = new InvoicePrinter(invoice, itemsData);
+
+                switch (mode)
+                {
+                    case PrintMode.Preview:
+                        printer.PrintPreview();
+                        break;
+
+                    case PrintMode.Direct:
+                        printer.PrintDirect();
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"خطا در چاپ فاکتور: {ex.Message}", "خطا");
+            }
+        }
+
+        // ذخیره به PDF
+        /*
+        private void SaveInvoiceToPdf(long invoiceId)
+        {
+            SaveFileDialog saveDialog = new SaveFileDialog();
+            saveDialog.Filter = "فایل PDF|*.pdf";
+            saveDialog.FileName = $"فاکتور_{invoiceId}_{DateTime.Now:yyyyMMdd}.pdf";
+
+            if (saveDialog.ShowDialog() == DialogResult.OK)
+            {
+                try
+                {
+                    InvoiceService invoiceService = new InvoiceService();
+                    var invoice = invoiceService.GetInvoiceById(invoiceId);
+
+                    if (invoice != null)
+                    {
+                        ExportService exportService = new ExportService();
+
+                        // ایجاد DataTable از اطلاعات فاکتور
+                        DataTable invoiceData = new DataTable();
+                        invoiceData.Columns.Add("شرح");
+                        invoiceData.Columns.Add("مقدار");
+
+                        invoiceData.Rows.Add("شماره فاکتور", invoice.InvoiceNo);
+                        invoiceData.Rows.Add("تاریخ", invoice.FormattedDate);
+                        invoiceData.Rows.Add("مشتری", invoice.CustomerName);
+                        invoiceData.Rows.Add("تلفن", invoice.CustomerPhone ?? "-");
+                        invoiceData.Rows.Add("آدرس", invoice.CustomerAddress ?? "-");
+                        invoiceData.Rows.Add("مبلغ کل", invoice.FormattedTotalAmount);
+                        invoiceData.Rows.Add("وضعیت", invoice.StatusText);
+
+                        bool result = exportService.ExportToPdf(invoiceData, saveDialog.FileName,
+                            $"فاکتور فروش - {invoice.InvoiceNo}");
+
+                        if (result)
+                        {
+                            MessageBox.Show("فاکتور با موفقیت به PDF ذخیره شد.", "موفقیت");
+                            System.Diagnostics.Process.Start(saveDialog.FileName);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"خطا در ذخیره PDF: {ex.Message}", "خطا");
+                }
+            }
+        }
+        */
+        // ذخیره به Excel
+        private void SaveInvoiceToExcel(long invoiceId)
+        {
+            SaveFileDialog saveDialog = new SaveFileDialog();
+            saveDialog.Filter = "فایل Excel|*.xlsx";
+            saveDialog.FileName = $"فاکتور_{invoiceId}_{DateTime.Now:yyyyMMdd}.xlsx";
+
+            if (saveDialog.ShowDialog() == DialogResult.OK)
+            {
+                try
+                {
+                    // دریافت اطلاعات فاکتور و آیتم‌ها
+                    string query = @"
+                SELECT 
+                    'اطلاعات فاکتور' as بخش,
+                    '' as اطلاعات
+                UNION ALL
+                SELECT 
+                    'شماره فاکتور' as بخش,
+                    InvoiceNo as اطلاعات
+                FROM Invoices WHERE InvoiceID = @InvoiceID
+                UNION ALL
+                SELECT 'تاریخ', FORMAT(InvoiceDate, 'yyyy/MM/dd')
+                FROM Invoices WHERE InvoiceID = @InvoiceID
+                UNION ALL
+                SELECT 'مشتری', CustomerName
+                FROM Invoices WHERE InvoiceID = @InvoiceID
+                UNION ALL
+                SELECT 'مبلغ کل', FORMAT(TotalAmount, 'N0') + ' تومان'
+                FROM Invoices WHERE InvoiceID = @InvoiceID
+                UNION ALL
+                SELECT '', ''
+                UNION ALL
+                SELECT 'لیست کالاها', ''
+                UNION ALL
+                SELECT 
+                    ProductName,
+                    CONCAT(Quantity, ' ', Unit, ' × ', FORMAT(UnitPrice, 'N0'), ' = ', FORMAT(LineTotal, 'N0'))
+                FROM InvoiceItems 
+                WHERE InvoiceID = @InvoiceID";
+
+                    SqlParameter[] parameters = new SqlParameter[]
+                    {
+                new SqlParameter("@InvoiceID", SqlDbType.BigInt) { Value = invoiceId }
+                    };
+
+                    DataTable invoiceData = Data.DatabaseHelper.ExecuteQuery(query, parameters);
+
+                    ExportService exportService = new ExportService();
+                    bool result = exportService.ExportToExcel(invoiceData, saveDialog.FileName);
+
+                    if (result)
+                    {
+                        MessageBox.Show("فاکتور با موفقیت به Excel ذخیره شد.", "موفقیت");
+                        System.Diagnostics.Process.Start(saveDialog.FileName);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"خطا در ذخیره Excel: {ex.Message}", "خطا");
+                }
+            }
         }
     }
 }

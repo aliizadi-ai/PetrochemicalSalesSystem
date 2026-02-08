@@ -1,22 +1,261 @@
-﻿using System;
+﻿using PetrochemicalSalesSystem.Models;
+using System;
 using System.Data;
 using System.Data.SqlClient;
-using PetrochemicalSalesSystem.Models;
+using System.Diagnostics;
 
 namespace PetrochemicalSalesSystem.Services
 {
     public class AuthService
     {
-        public (bool IsValid, Accountant Accountant, string ErrorMessage)
-            ValidateLogin(string username, string password)
+        public enum UserType { None, Accountant, Admin }
+
+        public class AuthResult
+        {
+            public bool IsValid { get; set; }
+            public string ErrorMessage { get; set; }
+            public UserType Type { get; set; }
+            public object User { get; set; }
+            public string DebugInfo { get; set; }
+        }
+
+        /// <summary>
+        /// بررسی اعتبار کاربر در هر دو جدول
+        /// </summary>
+        public AuthResult ValidateLogin(string username, string password)
+        {
+            string debugInfo = "";
+
+            try
+            {
+                debugInfo += $"شروع لاگین برای کاربر: {username}\n";
+
+                // ابتدا در Admins جستجو می‌کنیم
+                debugInfo += "در حال جستجو در جدول Admins...\n";
+                var adminResult = ValidateAdminLogin(username, password);
+
+                if (adminResult.IsValid)
+                {
+                    debugInfo += "✅ کاربر در جدول Admins یافت شد.\n";
+                    return new AuthResult
+                    {
+                        IsValid = true,
+                        Type = UserType.Admin,
+                        User = adminResult.User,
+                        ErrorMessage = "ورود مدیر موفقیت‌آمیز بود",
+                        DebugInfo = debugInfo
+                    };
+                }
+                else
+                {
+                    debugInfo += "❌ کاربر در جدول Admins یافت نشد.\n";
+                }
+
+                // سپس در Accountants جستجو می‌کنیم
+                debugInfo += "در حال جستجو در جدول Accountants...\n";
+                var accountantResult = ValidateAccountantLogin(username, password);
+
+                if (accountantResult.IsValid)
+                {
+                    debugInfo += "✅ کاربر در جدول Accountants یافت شد.\n";
+                    return new AuthResult
+                    {
+                        IsValid = true,
+                        Type = UserType.Accountant,
+                        User = accountantResult.User,
+                        ErrorMessage = "ورود حسابدار موفقیت‌آمیز بود",
+                        DebugInfo = debugInfo
+                    };
+                }
+                else
+                {
+                    debugInfo += "❌ کاربر در جدول Accountants یافت نشد.\n";
+                }
+
+                // اگر هیچکدام نبود، خطای عمومی می‌دهیم
+                debugInfo += "⚠️ کاربر در هیچ جدولی یافت نشد.\n";
+                return new AuthResult
+                {
+                    IsValid = false,
+                    Type = UserType.None,
+                    User = null,
+                    ErrorMessage = "نام کاربری یا رمز عبور اشتباه است",
+                    DebugInfo = debugInfo
+                };
+            }
+            catch (Exception ex)
+            {
+                debugInfo += $"💥 خطا: {ex.Message}\n";
+                return new AuthResult
+                {
+                    IsValid = false,
+                    Type = UserType.None,
+                    User = null,
+                    ErrorMessage = $"خطا در سیستم: {ex.Message}",
+                    DebugInfo = debugInfo
+                };
+            }
+        }
+
+        /// <summary>
+        /// بررسی اعتبار مدیر با لاگینگ پیشرفته
+        /// </summary>
+        private (bool IsValid, Admins User) ValidateAdminLogin(string username, string password)
         {
             try
             {
-                // کوئری برای بررسی اعتبار کاربر
+                Debug.WriteLine($"--- شروع ValidateAdminLogin برای {username} ---");
+
+                // کوئری ساده‌تر برای تست
+                string query = "SELECT * FROM Admins WHERE Username = @Username";
+
+                SqlParameter[] parameters = new SqlParameter[]
+                {
+                    new SqlParameter("@Username", SqlDbType.VarChar) { Value = username }
+                };
+
+                Debug.WriteLine($"اجرای کوئری: {query}");
+                Debug.WriteLine($"پارامتر: @Username = {username}");
+
+                DataTable dt = Data.DatabaseHelper.ExecuteQuery(query, parameters);
+
+                Debug.WriteLine($"تعداد ردیف‌های بازگشتی: {dt.Rows.Count}");
+
+                if (dt.Rows.Count == 0)
+                {
+                    Debug.WriteLine("کاربر یافت نشد.");
+                    return (false, null);
+                }
+
+                DataRow row = dt.Rows[0];
+
+                // بررسی فیلدهای موجود
+                Debug.WriteLine("فیلدهای موجود در ردیف:");
+                foreach (DataColumn col in dt.Columns)
+                {
+                    Debug.WriteLine($"  {col.ColumnName}: {row[col]}");
+                }
+
+                // بررسی فعال بودن
+                bool isActive = Convert.ToBoolean(row["IsActive"]);
+                if (!isActive)
+                {
+                    Debug.WriteLine("کاربر غیرفعال است.");
+                    return (false, null);
+                }
+
+                // بررسی رمز عبور
+                string storedPassword = row["Password"].ToString();
+                Debug.WriteLine($"رمز ذخیره شده: '{storedPassword}', رمز ورودی: '{password}'");
+
+                // نسخه ساده مقایسه (بعداً با هش جایگزین کنید)
+                if (storedPassword.Trim() != password.Trim())
+                {
+                    Debug.WriteLine("رمز عبور مطابقت ندارد.");
+                    return (false, null);
+                }
+
+                Debug.WriteLine("رمز عبور صحیح است.");
+
+                Admins admin = new Admins
+                {
+                    AdminID = Convert.ToInt64(row["AdminID"]),
+                    Username = row["Username"].ToString().Trim(),
+                    FirstName = row["FirstName"].ToString(),
+                    LastName = row["LastName"].ToString(),
+                    Email = row["Email"].ToString(),
+                    IsSuperAdmin = Convert.ToBoolean(row["IsSuperAdmin"]),
+                    IsActive = true
+                };
+
+                // آپدیت لاگین
+                UpdateAdminLastLogin(admin.AdminID);
+
+                Debug.WriteLine($"--- پایان ValidateAdminLogin (موفق) برای {username} ---");
+                return (true, admin);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"خطا در ValidateAdminLogin: {ex.Message}");
+                Debug.WriteLine($"StackTrace: {ex.StackTrace}");
+                return (false, null);
+            }
+        }
+
+        private void UpdateAdminLastLogin(long adminId)
+        {
+            try
+            {
+                string query = "UPDATE Admins SET LastLogin = GETDATE() WHERE AdminID = @AdminID";
+                SqlParameter[] parameters = new SqlParameter[]
+                {
+                    new SqlParameter("@AdminID", SqlDbType.BigInt) { Value = adminId }
+                };
+
+                Data.DatabaseHelper.ExecuteNonQuery(query, parameters);
+                Debug.WriteLine($"آپدیت LastLogin برای AdminID: {adminId}");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"خطا در UpdateAdminLastLogin: {ex.Message}");
+            }
+        }
+
+
+        /// <summary>
+        /// بررسی اعتبار کاربر در هر دو جدول
+        /// </summary>
+
+        /// <summary>
+        /// بررسی اعتبار مدیر
+        /// </summary>
+
+        /// <summary>
+        /// بررسی اعتبار مدیر
+        /// </summary>
+
+        /// <summary>
+        /// متد تست برای بررسی دسترسی به جدول Admins
+        /// </summary>
+        public string TestAdminLogin()
+        {
+            try
+            {
+                // تست اتصال به جدول Admins
+                string testQuery = "SELECT COUNT(*) as AdminCount FROM Admins";
+                DataTable dt = Data.DatabaseHelper.ExecuteQuery(testQuery);
+
+                int adminCount = Convert.ToInt32(dt.Rows[0]["AdminCount"]);
+
+                // نمایش تمام ادمین‌ها
+                string listQuery = "SELECT Username, IsActive FROM Admins";
+                DataTable listDt = Data.DatabaseHelper.ExecuteQuery(listQuery);
+
+                string result = $"تعداد مدیران در سیستم: {adminCount}\n";
+
+                foreach (DataRow row in listDt.Rows)
+                {
+                    result += $"- {row["Username"]} (فعال: {row["IsActive"]})\n";
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return $"خطا در دسترسی به جدول Admins: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// بررسی اعتبار حسابدار
+        /// </summary>
+        private (bool IsValid, Accountant User) ValidateAccountantLogin(string username, string password)
+        {
+            try
+            {
                 string query = @"
-                    SELECT AccountantID, Username, Password, FirstName, LastName, 
-                           IsActive, IsSystemAdmin, EmployeeCode, WorkEmail,
-                           FinancialSystemAccessLevel, FullName
+                    SELECT AccountantID, Username, FirstName, LastName, 
+                           IsActive, IsSystemAdmin, EmployeeCode, WorkEmail
                     FROM Accountants 
                     WHERE Username = @Username 
                       AND Password = @Password 
@@ -28,27 +267,11 @@ namespace PetrochemicalSalesSystem.Services
                     new SqlParameter("@Password", SqlDbType.VarChar, 100) { Value = password }
                 };
 
-                // اجرای کوئری
                 DataTable dt = Data.DatabaseHelper.ExecuteQuery(query, parameters);
 
                 if (dt.Rows.Count == 0)
-                {
-                    // اگر کاربر پیدا نشد، بررسی می‌کنیم که آیا کاربر وجود دارد اما رمز اشتباه است
-                    string checkUserQuery = "SELECT 1 FROM Accountants WHERE Username = @Username";
-                    SqlParameter[] userParam = new SqlParameter[]
-                    {
-                        new SqlParameter("@Username", SqlDbType.VarChar, 100) { Value = username }
-                    };
+                    return (false, null);
 
-                    DataTable userCheck = Data.DatabaseHelper.ExecuteQuery(checkUserQuery, userParam);
-
-                    if (userCheck.Rows.Count == 0)
-                        return (false, null, "نام کاربری یافت نشد");
-                    else
-                        return (false, null, "رمز عبور اشتباه است");
-                }
-
-                // تبدیل ردیف دیتابیس به شیء Accountant
                 DataRow row = dt.Rows[0];
                 Accountant accountant = new Accountant
                 {
@@ -61,78 +284,36 @@ namespace PetrochemicalSalesSystem.Services
                     WorkEmail = row["WorkEmail"]?.ToString()
                 };
 
-                // فیلدهای اختیاری
                 if (row.Table.Columns.Contains("IsSystemAdmin") && row["IsSystemAdmin"] != DBNull.Value)
                     accountant.IsSystemAdmin = Convert.ToBoolean(row["IsSystemAdmin"]);
 
-                if (row.Table.Columns.Contains("FinancialSystemAccessLevel") && row["FinancialSystemAccessLevel"] != DBNull.Value)
-                    accountant.FinancialSystemAccessLevel = Convert.ToByte(row["FinancialSystemAccessLevel"]);
-
-                if (row.Table.Columns.Contains("FullName") && row["FullName"] != DBNull.Value)
-                {
-                    // اگر FullName از دیتابیس می‌آید
-                }
-                else
-                {
-                    // یا از FirstName و LastName استفاده می‌کنیم
-                }
-
-                return (true, accountant, "ورود موفقیت‌آمیز");
+                return (true, accountant);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return (false, null, $"خطا در اتصال به پایگاه داده: {ex.Message}");
+                return (false, null);
             }
         }
 
         /// <summary>
-        /// بررسی می‌کند آیا کاربر مدیر سیستم است یا نه
+        /// به‌روزرسانی زمان آخرین لاگین مدیر
         /// </summary>
-        public bool IsSystemAdmin(string username)
+
+        /// <summary>
+        /// بررسی می‌کند آیا کاربر مدیر است یا نه
+        /// </summary>
+        public bool IsUserAdmin(string username)
         {
             try
             {
-                string query = "SELECT IsSystemAdmin FROM Accountants WHERE Username = @Username";
+                string query = "SELECT 1 FROM Admins WHERE Username = @Username AND IsActive = 1";
                 SqlParameter[] parameters = new SqlParameter[]
                 {
                     new SqlParameter("@Username", SqlDbType.VarChar, 100) { Value = username }
                 };
 
                 DataTable dt = Data.DatabaseHelper.ExecuteQuery(query, parameters);
-
-                if (dt.Rows.Count > 0 && dt.Rows[0]["IsSystemAdmin"] != DBNull.Value)
-                    return Convert.ToBoolean(dt.Rows[0]["IsSystemAdmin"]);
-
-                return false;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// تغییر رمز عبور کاربر
-        /// </summary>
-        public bool ChangePassword(string username, string oldPassword, string newPassword)
-        {
-            try
-            {
-                // ابتدا اعتبارسنجی کاربر
-                var validation = ValidateLogin(username, oldPassword);
-                if (!validation.IsValid)
-                    return false;
-
-                // به‌روزرسانی رمز عبور
-                string query = "UPDATE Accountants SET Password = @NewPassword WHERE Username = @Username";
-                SqlParameter[] parameters = new SqlParameter[]
-                {
-                    new SqlParameter("@NewPassword", SqlDbType.VarChar, 100) { Value = newPassword },
-                    new SqlParameter("@Username", SqlDbType.VarChar, 100) { Value = username }
-                };
-
-                int rowsAffected = Data.DatabaseHelper.ExecuteNonQuery(query, parameters);
-                return rowsAffected > 0;
+                return dt.Rows.Count > 0;
             }
             catch
             {
